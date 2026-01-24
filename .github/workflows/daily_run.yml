@@ -1,0 +1,52 @@
+name: Auto Run TrendRadar
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # 北京时间 8:00
+  workflow_dispatch:      # 允许手动运行
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    # 必须给写权限，否则无法签到
+    permissions:
+      contents: write
+      
+    steps:
+      - name: 1. 拉取代码
+        uses: actions/checkout@v4
+      
+      - name: 2. 准备环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: 3. 安装依赖
+        run: |
+          pip install -r requirements.txt
+          
+      - name: 4. 强制开启通知
+        run: |
+          # 复制配置文件
+          if [ ! -f config/config.yaml ]; then
+             cp config/config.example.yaml config/config.yaml
+          fi
+          # 开启通知开关
+          sed -i 's/enable_notification: false/enable_notification: true/g' config/config.yaml
+
+      - name: 5. 运行爬虫
+        env:
+          # 只要填了飞书，其他的如果是空的也不影响
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+          DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
+        run: python main.py
+
+      - name: 6. 自动签到保活
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          # 如果没有新内容，就不提交，防止报错
+          git commit -m "Auto update [$(date)]" || exit 0
+          git push
