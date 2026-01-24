@@ -1,0 +1,68 @@
+name: Auto Run TrendRadar
+
+on:
+  # 北京时间每天早上 8:00 运行
+  schedule:
+    - cron: '0 0 * * *'
+  # 允许手动点击运行
+  workflow_dispatch:
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    # 必须赋予写权限，否则无法自动提交代码
+    permissions:
+      contents: write
+
+    steps:
+      # --- 1. 拉取代码 ---
+      - name: 1. 拉取代码
+        uses: actions/checkout@v4
+
+      # --- 2. 准备 Python 环境 ---
+      - name: 2. 准备环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      # --- 3. 安装依赖 ---
+      - name: 3. 安装依赖
+        run: |
+          pip install -r requirements.txt
+
+      # --- 4. 配置通知 (强制开启) ---
+      - name: 4. 强制开启通知
+        run: |
+          # 如果没有配置文件，从示例复制一份
+          if [ ! -f config/config.yaml ]; then
+             cp config/config.example.yaml config/config.yaml
+          fi
+          
+          # 关键修复：强制把 false 改成 true，确保飞书能收到消息
+          sed -i 's/enable_notification: false/enable_notification: true/g' config/config.yaml
+
+      # --- 5. 运行爬虫 (这里修复了启动命令) ---
+      - name: 5. 运行爬虫
+        env:
+          # 请确保你在 Settings -> Secrets 里填了 FEISHU_WEBHOOK_URL
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+          DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
+          WEWORK_WEBHOOK_URL: ${{ secrets.WEWORK_WEBHOOK_URL }}
+        # ✅ 修正：使用模块化启动命令，而不是 main.py
+        run: python -m trendradar
+
+      # --- 6. 自动签到保活 (存回仓库) ---
+      - name: 6. 自动签到保活
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          git add .
+          
+          # 如果没有新内容，就不提交，防止报错 (exit 0)
+          git commit -m "Auto update [$(date)]" || exit 0
+          
+          # 推送到 master 分支
+          git push
