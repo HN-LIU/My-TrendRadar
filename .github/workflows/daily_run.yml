@@ -40,7 +40,7 @@ jobs:
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           BARK_KEY: ${{ secrets.BARK_KEY }}
           DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
-        run: python main.py
+        run: python -m trendradar
 
       - name: 6. 自动签到保活
         run: |
